@@ -30,7 +30,7 @@ COPY --from=0 /go/src/github.com/adnanh/webhook/webhook .
 COPY vdocker /usr/local/bin/
 
 # Stuff used in hooks
-RUN apk --update add curl curl-dev make bash git apache2-utils jq
+RUN apk --update add curl curl-dev make bash git apache2-utils jq openssh-client
 
 # webhook default port
 EXPOSE 9000
