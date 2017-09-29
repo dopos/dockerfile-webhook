@@ -21,16 +21,15 @@ RUN curl -sL https://github.com/adnanh/webhook/archive/${WEBHOOK_VERSION}.tar.gz
 # Base on docker/alpine in case of docker using in hooks
 FROM docker:17.07.0-ce
 
-# Main app will be placed in root
-WORKDIR /
-COPY --from=0 /go/src/github.com/adnanh/webhook/webhook .
-
-# Code from deprecated version of wpalmer/webhook image
-# TODO: why he removed it? where get the sources now?
-COPY vdocker /usr/local/bin/
-
 # Stuff used in hooks
 RUN apk --update add curl curl-dev make bash git apache2-utils jq openssh-client
+
+# Main app will be placed in root
+WORKDIR /
+
+COPY --from=0 /go/src/github.com/adnanh/webhook/webhook .
+
+COPY webhook /etc/webhook
 
 # webhook default port
 EXPOSE 9000
