@@ -163,27 +163,6 @@ vars2kv() {
 }
 
 # ------------------------------------------------------------------------------
-# get application deploy dir name from repo and tag
-depdir() {
-  local repo=$1
-  local tag=$2
-
-  # TODO: clone url support
-
-  local r0=${repo#*:}         # remove proto
-  local r1=${r0%.git}         # remove suffix
-
-  # TODO: gitea for "create" event sends ssh_url as
-  #   git@gitea:/jean/dcape-app-powerdns.git
-  # instead
-  #   git@gitea:jean/dcape-app-powerdns.git
-  r1=${r1#/} # gitea workaround
-
-  local repo_path=${r1/\//--}  # org/project -> org--project
-  echo ${repo_path}--${tag}
-}
-
-# ------------------------------------------------------------------------------
 # KV store key exists: save to $DEPLOY_CONFIG
 # or $DEPLOY_CONFIG exists: load it to KV store
 # else: generate default $DEPLOY_CONFIG and save it to KV store
@@ -238,12 +217,30 @@ condition_check() {
     exit 10
   fi
 
-  # repository url
+   # repository url
   if [[ "$REPO_PRIVATE" == "true" ]] ; then
     repo=$SSH_URL
+    # "ssh_url": "git@git.dev.lan:jean/dcape-app-powerdns.git",
+    local r0=${repo#*:}         # remove 'git@git.dev.lan:'
+    # TODO: gitea for "create" event sends ssh_url as
+    #   git@gitea:/jean/dcape-app-powerdns.git
+    # instead
+    #   git@gitea:jean/dcape-app-powerdns.git
+    r0=${r0#/} # gitea workaround
+    repo=${repo/:\//:} # gitea workaround
+    # dcape on same host, replace hostname
+    [[ "$MODE" == "local" ]] && repo=${repo/@*:/@$LOCAL_GIT_HOST:}
   else
     repo=$CLONE_URL
+    # "clone_url": "http://git.dev.lan/jean/dcape-app-powerdns.git",
+    local r0=${repo#*//*/}         # remove 'https?://git.dev.lan/'
+
+    [[ "$MODE" == "local" ]] && repo="http://$LOCAL_GIT_HOST:3000/$r0" # gitea listens port port 3000 internally
   fi
+
+  local r1=${r0%.git} # remove suffix
+  repoid=${r1/\//--}  # org/project -> org--project
+
   if [[ ! "repo" ]] ; then
     log "Hook skipped: repository.{ssh,clone}_url key empty in payload (private:$REPO_PRIVATE)"
     exit 11
@@ -254,7 +251,6 @@ condition_check() {
     log "Hook skipped: only push & create supported, but received '$EVENT'"
     exit 12
   fi
-
 
   # tag/branch name
   if [[ $URL_BRANCH != "default" ]] ; then
@@ -280,13 +276,11 @@ condition_check() {
 process() {
 
   local repo
+  local repoid
   local tag
   condition_check
 
-  local deploy_dir=$(depdir $repo $tag)
-
-  # dcape on same host
-  [[ "$MODE" == "local" ]] && repo=${repo/@*:/@$LOCAL_GIT_HOST:/}
+  local deploy_dir="${repoid}--$tag"
 
   local config
   kv_read $deploy_dir
@@ -298,7 +292,7 @@ process() {
   if [[ ${tag%-rm} != $tag ]] ; then
     local rmtag=${tag%-rm}
     log "$repo $rmtag"
-    deploy_dir=$(depdir $repo $rmtag)
+    deploy_dir="${repoid}--$rmtag"
     log "Requested cleanup for $deploy_dir"
     if [ -d $deploy_dir ] ; then
       log "Removing $deploy_dir..."
@@ -306,6 +300,8 @@ process() {
       make_stop $deploy_dir $make_cmd
       rm -rf $deploy_dir || { log "rmdir error: $!" ; exit $? ; }
     fi
+    local deplog_file="$DEPLOY_LOG_DIR/$deploy_dir.log"
+    [ -f $deplog_file ] && rm $deplog_file
     log "Cleanup complete"
     exit 0
   fi
