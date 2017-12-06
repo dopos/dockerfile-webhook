@@ -146,7 +146,7 @@ kv2vars() {
   local r=$(curl -gs $ENFIST/tag_vars?a_code=$key)
   #echo "# Generated from KV store $key"
   local ret=$(echo "$r" | jq -r .result[0].tag_vars)
-  [[ "$ret" == "null" ]] && ret="" 
+  [[ "$ret" == "null" ]] && ret=""
   echo "$ret"
 }
 
@@ -337,6 +337,7 @@ process() {
     fi
     local make_cmd=$(config_var "$config" $VAR_MAKE_UPDATE)
     log "Pull..."
+    $GIT fetch && $GIT reset --hard origin/$tag
     $GIT pull --recurse-submodules 2>&1 || { echo "Pull error: $?" ; exit 1 ; }
     log "Pull submodules..."
     $GIT submodule update --recursive --remote 2>&1 || { echo "sPull error: $?" ; exit 1 ; }
