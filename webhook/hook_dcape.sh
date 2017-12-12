@@ -253,10 +253,16 @@ condition_check() {
   fi
 
   # tag/branch name
+  local changed_tag=${REF#refs/heads/}
+
   if [[ $URL_BRANCH != "default" ]] ; then
     tag=$URL_BRANCH
+    if [[ "$tag" != "$changed_tag" ]] ; then
+      log "Hook skipped: config for $tag but changed $changed_tag"
+      exit 13
+    fi
   else
-    tag=${REF#refs/heads/}
+    tag=$changed_tag
   fi
 
   if [[ $tag != ${tag#$TAG_PREFIX_SKIP} ]] ; then
