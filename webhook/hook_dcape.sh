@@ -258,7 +258,7 @@ condition_check() {
   if [[ $URL_BRANCH != "default" ]] ; then
     tag=$URL_BRANCH
     if [[ "$tag" != "$changed_tag" ]] ; then
-      log "Hook skipped: config for $tag but changed $changed_tag"
+      log "Hook skipped: changed branch ($changed_tag) differs from config ($tag)"
       exit 13
     fi
   else
@@ -267,12 +267,12 @@ condition_check() {
 
   if [[ $tag != ${tag#$TAG_PREFIX_SKIP} ]] ; then
     log "Hook skipped: ($TAG_PREFIX_SKIP) matched"
-    exit 13
+    exit 14
   fi
 
   if [[ "$TAG_PREFIX_FILTER" ]] && [[ $tag == ${tag#$TAG_PREFIX_FILTER} ]] ; then
     log "Hook skipped: ($tag) ($TAG_PREFIX_FILTER) does not matched"
-    exit 14
+    exit 15
   fi
 
 }
@@ -316,10 +316,10 @@ process() {
   # continue setup otherwise
   local enabled=$(config_var "$config" $VAR_ENABLED)
 
-  # check only when config loaded
+  # check if deploy disabled directly (and not empty)
   if [[ "$config" ]] && [[ "$enabled" == "no" ]] ; then
-    log "$VAR_ENABLED value disables hook because not equal to 'yes' ($enabled). Exiting"
-    exit 15
+    log "Hook skipped: $VAR_ENABLED value disables hook because equal to 'no'"
+    exit 16
   fi
 
   local hot_enabled=$(config_var "$config" $VAR_UPDATE_HOT)
@@ -344,9 +344,9 @@ process() {
     local make_cmd=$(config_var "$config" $VAR_MAKE_UPDATE)
     log "Pull..."
     $GIT fetch && $GIT reset --hard origin/$tag
-    $GIT pull --recurse-submodules 2>&1 || { echo "Pull error: $?" ; exit 1 ; }
+    $GIT pull --recurse-submodules 2>&1 || { echo "Pull error: $?" ; exit 21 ; }
     log "Pull submodules..."
-    $GIT submodule update --recursive --remote 2>&1 || { echo "sPull error: $?" ; exit 1 ; }
+    $GIT submodule update --recursive --remote 2>&1 || { echo "Submodule error: $?" ; exit 22 ; }
     if [[ "$make_cmd" != "" ]] ; then
       log "Starting $MAKE $make_cmd..."
       deplog_begin $deplog_dest $make_cmd
@@ -363,15 +363,15 @@ process() {
     log "ReCreating $deploy_dir..."
     local make_cmd=$(config_var "$config" $VAR_MAKE_STOP)
     make_stop $deploy_dir $make_cmd
-    rm -rf $deploy_dir || { log "rmdir error: $!" ; exit $? ; }
+    rm -rf $deploy_dir || { log "Recreate rmdir error: $!" ; exit $? ; }
   else
     # git clone will create it if none but we have to check permissions
     log "Creating $deploy_dir..."
-    mkdir -p $deploy_dir || { log "mkdir error: $!" ; exit $? ; }
+    mkdir -p $deploy_dir || { log "Create mkdir error: $!" ; exit $? ; }
   fi
   log "Clone $repo / $tag..."
   log "git clone --depth=1 --recursive --branch $tag $repo $deploy_dir"
-  $GIT clone --depth=1 --recursive --branch $tag $repo $deploy_dir || { echo "Clone error: $?" ; exit 1 ; }
+  $GIT clone --depth=1 --recursive --branch $tag $repo $deploy_dir || { echo "Clone error: $?" ; exit 23 ; }
   pushd $deploy_dir > /dev/null
 
   if [ -f Makefile ] ; then
@@ -379,13 +379,13 @@ process() {
 
     env_setup "$config" $deploy_key
 
-    # check if hook was enabled directly
+    # check if hook was not enabled directly (ie if empty)
     if [[ "$enabled" != "yes" ]] ; then
-      log "$VAR_ENABLED value disables hook because not equal to 'yes' ($enabled). Exiting"
+      log "Hook skipped: $VAR_ENABLED value disables hook because not equal to 'yes' ($enabled)"
       popd > /dev/null # deploy_dir
       # Setup loaded in kv and nothing started
       rm -rf $deploy_dir || { log "rmdir error: $!" ; exit $? ; }
-      exit 16
+      exit 17
     fi
     local make_cmd=$(config_var "$config" $VAR_MAKE_START)
     log "Starting $MAKE $make_cmd..."
