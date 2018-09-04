@@ -2,7 +2,7 @@ FROM golang:1.9-alpine3.6
 
 MAINTAINER Alexey Kovrizhkin <lekovr+dopos@gmail.com>
 
-ENV WEBHOOK_VERSION 2.6.5
+ENV WEBHOOK_VERSION 2.6.8
 
 WORKDIR /go/src/github.com/adnanh
 
@@ -19,10 +19,10 @@ RUN curl -sL https://github.com/adnanh/webhook/archive/${WEBHOOK_VERSION}.tar.gz
 # Second build stage, so use cloud.docker.com instead hub.docker.com for autobuild
 
 # Base on docker/alpine in case of docker using in hooks
-FROM docker:17.07.0-ce
+FROM docker:18.06.0-ce
 
 # Stuff used in hooks
-RUN apk --update add curl curl-dev make bash git apache2-utils jq openssh-client
+RUN apk --update add curl curl-dev make bash git apache2-utils jq openssh-client gawk
 
 # Main app will be placed in root
 WORKDIR /
