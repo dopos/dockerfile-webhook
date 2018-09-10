@@ -264,14 +264,17 @@ condition_check() {
       tag=$URL_BRANCH
     fi
   else
-	if [[ $URL_BRANCH != "default" ]] ; then
-	  tag=$URL_BRANCH
-	  if [[ "$tag" != "$changed_tag" ]] ; then
-	    log "Hook skipped: used branch ($changed_tag) differs from config webhook ($tag)"
-	    exit 13
-	  fi
-	else
-	  tag=$changed_tag
+    # set tag from REF value only with used branch name = branch name from config webhook 
+    # and if used branch name = master and branch name from config webhook = default
+    # all other case - skip start webhook script
+    if [[ $URL_BRANCH != "default" && $changed_tag != "master" ]] ; then
+      tag=$URL_BRANCH
+      if [[ "$tag" != "$changed_tag" ]] ; then
+        log "Hook skipped: used branch ($changed_tag) differs from config webhook ($tag)"
+        exit 13
+      fi
+    else
+      tag=$changed_tag
     fi
   fi
 
