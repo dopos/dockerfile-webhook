@@ -1,7 +1,7 @@
 [
   {
     "id": "remote",
-    "execute-command": "./hook_dcape.sh",
+    "execute-command": "/etc/webhook/hook_dcape.sh",
     "command-working-directory": "/etc/webhook",
     "include-command-output-in-response": false,
     "trigger-rule-mismatch-http-response-code": 400,
