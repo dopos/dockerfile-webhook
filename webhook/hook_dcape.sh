@@ -257,7 +257,12 @@ condition_check() {
   local changed_tag=${REF#refs/heads/}
 
   if [[ ${URL_BRANCH%-rm} != $URL_BRANCH ]] ; then
-	tag=$URL_BRANCH
+    # if config webhook set default-rm instead BRANCH-rm, use REF value for remove deploy
+    if [[ ${URL_BRANCH%-rm} = "default" ]] ; then
+      tag=${changed_tag}-rm
+	else
+      tag=$URL_BRANCH
+    fi
   else
 	if [[ $URL_BRANCH != "default" ]] ; then
 	  tag=$URL_BRANCH
