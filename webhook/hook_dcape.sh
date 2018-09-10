@@ -253,17 +253,21 @@ condition_check() {
   fi
 
   # tag/branch name, check name of branch from URL and REF, if mathed - start hook
-  # if name of branch = NAME-rm - start hook with tag=NAME-rm 
+  # if name of branch = NAME-rm - start hook with tag=NAME-rm (tag=$URL_BRANCH, because REF=/refs/heads/master)
   local changed_tag=${REF#refs/heads/}
 
-  if [[ $URL_BRANCH != "default" && ${changed_tag%-rm} = $changed_tag ]] ; then
-    tag=$URL_BRANCH
-    if [[ "$tag" != "$changed_tag" ]] ; then
-      log "Hook skipped: changed branch ($changed_tag) differs from config ($tag)"
-      exit 13
-    fi
+  if [[ ${URL_BRANCH%-rm} != $URL_BRANCH ]] ; then
+	tag=$URL_BRANCH
   else
-    tag=$changed_tag
+	if [[ $URL_BRANCH != "default" ]] ; then
+	  tag=$URL_BRANCH
+	  if [[ "$tag" != "$changed_tag" ]] ; then
+	    log "Hook skipped: used branch ($changed_tag) differs from config webhook ($tag)"
+	    exit 13
+	  fi
+	else
+	  tag=$changed_tag
+    fi
   fi
 
   if [[ $tag != ${tag#$TAG_PREFIX_SKIP} ]] ; then
