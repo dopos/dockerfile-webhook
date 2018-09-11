@@ -254,12 +254,12 @@ condition_check() {
 
   # tag/branch name, check name of branch from URL and REF, if mathed - start hook, if not - skip; if equal BRANCH-rm - start remove deploy
   local changed_tag=${REF#refs/heads/}
-  # if any name of branch (URL or REF) contains NAME-rm - start hook with tag=NAME-rm (tag=$URL_BRANCH, because REF=/refs/heads/master)
+  # if any name of branch (URL or REF) contains NAME-rm - start hook with tag=NAME-rm
   if [[ ${URL_BRANCH%-rm} != $URL_BRANCH || ${changed_tag%-rm} != $changed_tag ]] ; then
     # if use hook for remove deploy with branch name - BRANCH-rm
     if [[ ${changed_tag%-rm} != $changed_tag ]] ; then
-      tag=${changed_tag}  
-    # if config webhook set default-rm instead BRANCH-rm, use REF value for remove deploy
+      tag=${changed_tag}
+    # if use Test delivery with set default-rm instead BRANCH-rm, use modified REF value for remove deploy
     elif [[ ${URL_BRANCH%-rm} = "default" ]] ; then
       tag=${changed_tag}-rm
     # if use Test delivery with set branch name to config hook = BRANCH-rm - use this value
