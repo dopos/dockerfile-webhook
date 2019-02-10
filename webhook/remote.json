@@ -37,6 +37,16 @@
       },
       {
         "source": "payload",
+        "name": "repository.default_branch",
+        "envname": "DEFAULT_BRANCH"
+      },
+	  {
+   	  "source": "payload",
+   	  "name": "commits.1.id",
+   	  "envname": "COMMIT_ID_1"
+      },
+      {
+        "source": "payload",
         "name": "repository.private",
         "envname": "REPO_PRIVATE"
       },

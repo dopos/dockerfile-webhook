@@ -1,4 +1,4 @@
-[
+ [
   {
     "id": "local",
     "execute-command": "/etc/webhook/hook_dcape.sh",
@@ -34,6 +34,16 @@
         "source": "payload",
         "name": "ref",
         "envname": "REF"
+      },
+      {
+        "source": "payload",
+        "name": "repository.default_branch",
+        "envname": "DEFAULT_BRANCH"
+      },
+      {
+         "source": "payload",
+         "name": "commits.1.id",
+         "envname": "COMMIT_ID_1"
       },
       {
         "source": "payload",
