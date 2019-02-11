@@ -16,10 +16,9 @@ REPO_PRIVATE=${REPO_PRIVATE:-false}
 SSH_URL=${SSH_URL}
 CLONE_URL=${CLONE_URL}
 DEFAULT_BRANCH=${DEFAULT_BRANCH:-master}
-# when push to repo gitea send the data of several commits,
-# if "Test delivery" - send data only one commit
-# if var is empty - event from "Test delivery", if not - push
-COMMIT_ID_1=${COMMIT_ID_1}
+# when push to repo gitea send compare_url is not empty
+# if "Test delivery" - compare_url is empty
+COMPARE_URL=${COMPARE_URL:-}
 
 # ------------------------------------------------------------------------------
 # Vars from ENV
@@ -126,7 +125,7 @@ deplog() {
 # Get value from KV store
 kv_read() {
   local path=$1
-  local ret=$(curl -gs $ENFIST/tag_vars?a_code=$path | jq -r .result[0].tag_vars)
+  local ret=$(curl -gs $ENFIST/tag_vars?code=$path | jq -r .)
   [[ "$ret" == "null" ]] && ret=""
   config=$ret
 }
@@ -148,9 +147,9 @@ config_var() {
 # Parse STDIN as JSON and echo "name=value" pairs
 kv2vars() {
   local key=$1
-  local r=$(curl -gs $ENFIST/tag_vars?a_code=$key)
+  local r=$(curl -gs $ENFIST/tag_vars?code=$key)
   #echo "# Generated from KV store $key"
-  local ret=$(echo "$r" | jq -r .result[0].tag_vars)
+  local ret=$(echo "$r" | jq -r .)
   [[ "$ret" == "null" ]] && ret=""
   echo "$ret"
 }
@@ -160,7 +159,7 @@ kv2vars() {
 vars2kv() {
   local cmd=$1
   local key=$2
-  local q=$(jq -R -sc ". | {\"a_code\":\"$key\",\"a_data\":.}")
+  local q=$(jq -R -sc ". | {\"code\":\"$key\",\"data\":.}")
   # pack newlines, escape doble quotes
   #  local c=$(sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/\\n/g' | sed 's/"/\\"/g')
   local req=$(curl -gsd "$q" $ENFIST/tag_$cmd)
@@ -257,79 +256,90 @@ condition_check() {
     exit 12
   fi
 
-  # tag/branch name, check name of branch from URL and REF, if matched - start hook, if not - skip; if equal BRANCH-rm - start remove deploy
-  local modified_ref=${REF#refs/heads/}
+  # tag/branch name
+  local changed_tag=${REF#refs/heads/}
 
+  # the record separator of the events in the log
+  log "  "
+  log " ------- new event in hook ------- "
 
-  # if config from URL = all and have push event for repo - start of deployment of the modified branch
-  if [[ $URL_BRANCH = "all" ]] ; then
-    # check the events witch initiated deployment
-    if [[ "$COMMIT_ID_1" ]] ; then
-      log "Found request to perform a deployment by button \"Test delivery\" and URL=all"
-      log "Wrong config, skipped deploy. Use URL=NAME or URL=default for successfuly deployment"
-      exit 13
-    else
-      log "Found request to perform a deployment with push event on branch=$modified_ref and config URL=all"
-      log "Config ok, performing a deployment"
-      tag=$modified_ref
-    fi
-  fi
-
-
-# if config URL contains "-rm" suffix start remove deploy procedure
-# or report an error if push event with "-rm" suffix on URL config
+  # if config URL contains "-rm" suffix start remove deploy procedure
+  # or report an error if push event with "-rm" suffix on URL config
   if [[ ${URL_BRANCH%-rm} != "$URL_BRANCH" ]] ; then
    # check the event witch initiated deployment, if "Test delivery" - make a remove, if push - skip deploy, report about error config URL
-   if [[ "$COMMIT_ID_1" ]] ; then
+   if [[ ! "$COMPARE_URL" ]] ; then
      # check config URL for the presence of "default" string
      # if presence - use branch name from gitea data, if none - use branch name fron URL config
      if [[ ${URL_BRANCH} == *default* ]] ; then
-       log "Found request to a remove deploy by button \"Test delivery\" and config URL=default-rm"
-       log "Config ok, reremove a branch named ($DEFAULT_BRANCH) configured as the default brach in the repository"
+       log "Found request to a remove deploy by button *Test delivery* and config URL=default-rm"
+       log "Config ok, reremove deployment for branch ($DEFAULT_BRANCH) configured as the default on repository"
        tag=${DEFAULT_BRANCH}-rm
      else
-       log "Found request to remove deploy by button \"Test delivery\" and config URL=$URL_BRANCH"
-       log "Config ok, remove deployment for branch=${URL_BRANCH%-rm}"
+       log "Found request to remove deploy by button *Test delivery* and config URL=$URL_BRANCH"
+       log "Config ok, remove deployment for branch (${URL_BRANCH%-rm})"
        tag=$URL_BRANCH
      fi
    else
      log "Found request to perform a deployment by push event and config URL=default-rm or URL=NAME-rm"
-     log "Wrong config URL, the deployment was skipped. Use config URL without \"-rm\" suffix for success deploy"
-     exit 14
+     log "Wrong config URL, the deployment was skipped. Use config URL without (-rm) suffix for success deploy"
+     exit 13
    fi
+
   # if in config URL not present "-rm" - check for URL=default
-  elif [[ ${URL_BRANCH} == *default* && ! "$tag" ]] ; then
+  elif [[ ${URL_BRANCH} == *default* ]] ; then
     # check the event witch initiated deployment, if "Test delivery" - make a remove default branch
-    if [[ "$COMMIT_ID_1" ]] ; then
-      log "Found request to a deploy by button "Test delivery" event for branch with name same as default name in the settings in repository and config URL=default"
+    if [[ ! "$COMPARE_URL" ]] ; then
+      log "Found request to a deploy by button *Test delivery* and config URL=default"
+      log "Branch ($DEFAULT_BRANCH) the default branch in the repository settings"
       log "Config ok, make deploy a branch ($DEFAULT_BRANCH)"
       tag=$DEFAULT_BRANCH
     else
-      if [[ $modified_ref == "$DEFAULT_BRANCH" ]] ; then
-        log "Found request to a deploy by push event for branch with name same as default name in the settings in repository and config URL=default"
-        tag=$modified_ref
+      if [[ $changed_tag == "$DEFAULT_BRANCH" ]] ; then
+        log "Found request to a deploy by push event for branch ($changed_tag) and config URL=default"
+        log "Branch ($changed_tag) the default branch in the repository settings"
+        log "Config ok, make deploy a branch ($changed_tag)"
+        tag=$changed_tag
       else
-        log "Found request to a deploy by push event for branch ($modified_ref) and config URL=default"
-        log "Wrong config, skipped deploy. Pushed branch ($modified_ref) not a default branch on repository"
-        exit 15
+        log "Found request to a deploy by push event for branch ($changed_tag) and config URL=default"
+        log "Wrong config, skipped deploy. Pushed branch ($changed_tag) not a default branch in repository"
+        exit 14
       fi
     fi
-  # if the button "Test delivery" was pressed and config URL=NAME - make deploy for branch NAME
-  elif [[ "$COMMIT_ID_1" && ! "$tag" ]] ; then
-    log "Found request to a deploy by button \"Test delivery\" and config URL=$URL_BRANCH"
-    log "Config or, make a deploy for branch ($URL_BRANCH)"
-    tag=$URL_BRANCH
-  # if push branch with name equal NAME from config URL=NAME - make a deploy for branch NAME
-  elif [[ "$URL_BRANCH" == "$modified_ref" && ! "$COMMIT_ID_1" ]] ; then
-    log "Found request to a deploy by push event on branch ($modified_ref) and config URL=$URL_BRANCH"
-    log "Config ok, make a deploy for branch ($modified_ref)"
-    tag=$modified_ref
-  elif [[ "$URL_BRANCH" != "$modified_ref" && ! "$COMMIT_ID_1" ]] ; then
-    log "Found request to a deploy by push event on branch ($modified_ref) and config URL=$URL_BRANCH"
-    Log "Wrong config, modified branch name not equal to config URL, skipped deploy"
-    exit 16
-  fi
 
+  # if config from URL = all and have push event for repo - start of deployment of the modified branch
+  elif [[ $URL_BRANCH = "all" ]] ; then
+    # check the events witch initiated deployment
+    if [[ ! "$COMPARE_URL" ]] ; then
+      log "Found request a deployment by button (Test delivery) and URL=all"
+      log "Wrong config, skipped deploy. Use URL=NAME or URL=default for successfuly deployment"
+      exit 15
+    else
+      log "Found request a deployment with push event on branch ($changed_tag) and config URL=all"
+      log "Config ok, performing a deployment"
+      tag=$changed_tag
+    fi
+
+  # if push branch with name equal NAME from config URL=NAME - make a deploy for branch NAME
+  elif [[ "$URL_BRANCH" == "$changed_tag" && "$COMPARE_URL" ]] ; then
+    log "Found request to a deploy by push event on branch ($changed_tag) and config URL=$URL_BRANCH"
+    log "Config ok, make a deploy for branch ($changed_tag)"
+    tag=$changed_tag
+
+  elif [[ "$URL_BRANCH" != "$changed_tag" && "$COMPARE_URL" ]] ; then
+    log "Found request to a deploy by push event on branch ($changed_tag) and config URL=$URL_BRANCH"
+    log "Wrong config, modified branch name not equal to config URL, skipped deploy"
+    exit 16
+
+  # if the button "Test delivery" was pressed and config URL=NAME - make deploy for branch NAME
+  elif [[ ! "$COMPARE_URL" ]] ; then
+    log "Found request to a deploy by button *Test delivery* and config URL=$URL_BRANCH"
+    log "Config ok, make a deploy for branch ($URL_BRANCH)"
+    tag=$URL_BRANCH
+
+  # if not found any variants for make deploy - report to log
+  else
+    log "Not found valid request and config URL for deploy"
+  fi
 
   if [[ $tag != ${tag#$TAG_PREFIX_SKIP} ]] ; then
     log "Hook skipped: ($TAG_PREFIX_SKIP) matched"
@@ -340,6 +350,8 @@ condition_check() {
     log "Hook skipped: ($tag) ($TAG_PREFIX_FILTER) does not matched"
     exit 18
   fi
+
+
 
 }
 
@@ -385,7 +397,7 @@ process() {
   # check if deploy disabled directly (and not empty)
   if [[ "$config" ]] && [[ "$enabled" == "no" ]] ; then
     log "Hook skipped: $VAR_ENABLED value disables hook because equal to 'no'"
-    exit 16
+    exit 19
   fi
 
   local hot_enabled=$(config_var "$config" $VAR_UPDATE_HOT)
@@ -451,7 +463,7 @@ process() {
       popd > /dev/null # deploy_dir
       # Setup loaded in kv and nothing started
       rm -rf $deploy_dir || { log "rmdir error: $!" ; exit $? ; }
-      exit 17
+      exit 20
     fi
     local make_cmd=$(config_var "$config" $VAR_MAKE_START)
     log "Starting $MAKE $make_cmd..."
