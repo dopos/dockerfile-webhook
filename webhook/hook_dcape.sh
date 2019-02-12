@@ -350,9 +350,6 @@ condition_check() {
     log "Hook skipped: ($tag) ($TAG_PREFIX_FILTER) does not matched"
     exit 18
   fi
-
-
-
 }
 
 # ------------------------------------------------------------------------------
