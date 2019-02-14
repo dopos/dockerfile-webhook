@@ -121,7 +121,7 @@ deplog() {
 # Get value from KV store
 kv_read() {
   local path=$1
-  local ret=$(curl -gs $ENFIST/tag_vars?a_code=$path | jq -r .result[0].tag_vars)
+  local ret=$(curl -gs $ENFIST/tag_vars?code=$path | jq -r .)
   [[ "$ret" == "null" ]] && ret=""
   config=$ret
 }
@@ -143,9 +143,9 @@ config_var() {
 # Parse STDIN as JSON and echo "name=value" pairs
 kv2vars() {
   local key=$1
-  local r=$(curl -gs $ENFIST/tag_vars?a_code=$key)
+  local r=$(curl -gs $ENFIST/tag_vars?code=$key)
   #echo "# Generated from KV store $key"
-  local ret=$(echo "$r" | jq -r .result[0].tag_vars)
+  local ret=$(echo "$r" | jq -r .)
   [[ "$ret" == "null" ]] && ret=""
   echo "$ret"
 }
@@ -155,7 +155,7 @@ kv2vars() {
 vars2kv() {
   local cmd=$1
   local key=$2
-  local q=$(jq -R -sc ". | {\"a_code\":\"$key\",\"a_data\":.}")
+  local q=$(jq -R -sc ". | {\"code\":\"$key\",\"data\":.}")
   # pack newlines, escape doble quotes
   #  local c=$(sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/\\n/g' | sed 's/"/\\"/g')
   local req=$(curl -gsd "$q" $ENFIST/tag_$cmd)
