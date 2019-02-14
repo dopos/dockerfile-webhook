@@ -53,9 +53,9 @@ GIT=${GIT:-git}
 # Make bin used
 MAKE=${MAKE:-make}
 # Tag prefix matched => skip hook run
-TAG_PREFIX_SKIP=${TAG_PREFIX_SKIP:-tmp}
+REF_PREFIX_SKIP=${REF_PREFIX_SKIP:-tmp}
 # Tag prefix set and does not match => skip hook run
-TAG_PREFIX_FILTER=${TAG_PREFIX_FILTER:-}
+REF_PREFIX_FILTER=${REF_PREFIX_FILTER:-}
 
 # ------------------------------------------------------------------------------
 # Internal config
@@ -250,14 +250,14 @@ condition_check() {
     exit 11
   fi
 
-  # TODO: support "tag"
+  # TODO: support "ref"
   if [[ "$EVENT" != "push" ]] && [[ "$EVENT" != "create" ]]; then
     log "Hook skipped: only push & create supported, but received '$EVENT'"
     exit 12
   fi
 
-  # tag/branch name
-  local changed_tag=${REF#refs/heads/}
+  # ref/branch name
+  local changed_ref=${REF#refs/heads/}
 
   # the record separator of the events in the log
   log "  "
@@ -273,11 +273,11 @@ condition_check() {
      if [[ ${URL_BRANCH} == *default* ]] ; then
        log "Found request to a remove deploy by button *Test delivery* and config URL=default-rm"
        log "Config ok, reremove deployment for branch ($DEFAULT_BRANCH) configured as the default on repository"
-       tag=${DEFAULT_BRANCH}-rm
+       ref=${DEFAULT_BRANCH}-rm
      else
        log "Found request to remove deploy by button *Test delivery* and config URL=$URL_BRANCH"
        log "Config ok, remove deployment for branch (${URL_BRANCH%-rm})"
-       tag=$URL_BRANCH
+       ref=$URL_BRANCH
      fi
    else
      log "Found request to perform a deployment by push event and config URL=default-rm or URL=NAME-rm"
@@ -292,16 +292,16 @@ condition_check() {
       log "Found request to a deploy by button *Test delivery* and config URL=default"
       log "Branch ($DEFAULT_BRANCH) the default branch in the repository settings"
       log "Config ok, make deploy a branch ($DEFAULT_BRANCH)"
-      tag=$DEFAULT_BRANCH
+      ref=$DEFAULT_BRANCH
     else
-      if [[ $changed_tag == "$DEFAULT_BRANCH" ]] ; then
-        log "Found request to a deploy by push event for branch ($changed_tag) and config URL=default"
-        log "Branch ($changed_tag) the default branch in the repository settings"
-        log "Config ok, make deploy a branch ($changed_tag)"
-        tag=$changed_tag
+      if [[ $changed_ref == "$DEFAULT_BRANCH" ]] ; then
+        log "Found request to a deploy by push event for branch ($changed_ref) and config URL=default"
+        log "Branch ($changed_ref) the default branch in the repository settings"
+        log "Config ok, make deploy a branch ($changed_ref)"
+        ref=$changed_ref
       else
-        log "Found request to a deploy by push event for branch ($changed_tag) and config URL=default"
-        log "Wrong config, skipped deploy. Pushed branch ($changed_tag) not a default branch in repository"
+        log "Found request to a deploy by push event for branch ($changed_ref) and config URL=default"
+        log "Wrong config, skipped deploy. Pushed branch ($changed_ref) not a default branch in repository"
         exit 14
       fi
     fi
@@ -314,19 +314,19 @@ condition_check() {
       log "Wrong config, skipped deploy. Use URL=NAME or URL=default for successfuly deployment"
       exit 15
     else
-      log "Found request a deployment with push event on branch ($changed_tag) and config URL=all"
+      log "Found request a deployment with push event on branch ($changed_ref) and config URL=all"
       log "Config ok, performing a deployment"
-      tag=$changed_tag
+      ref=$changed_ref
     fi
 
   # if push branch with name equal NAME from config URL=NAME - make a deploy for branch NAME
-  elif [[ "$URL_BRANCH" == "$changed_tag" && "$COMPARE_URL" ]] ; then
-    log "Found request to a deploy by push event on branch ($changed_tag) and config URL=$URL_BRANCH"
-    log "Config ok, make a deploy for branch ($changed_tag)"
-    tag=$changed_tag
+  elif [[ "$URL_BRANCH" == "$changed_ref" && "$COMPARE_URL" ]] ; then
+    log "Found request to a deploy by push event on branch ($changed_ref) and config URL=$URL_BRANCH"
+    log "Config ok, make a deploy for branch ($changed_ref)"
+    ref=$changed_ref
 
-  elif [[ "$URL_BRANCH" != "$changed_tag" && "$COMPARE_URL" ]] ; then
-    log "Found request to a deploy by push event on branch ($changed_tag) and config URL=$URL_BRANCH"
+  elif [[ "$URL_BRANCH" != "$changed_ref" && "$COMPARE_URL" ]] ; then
+    log "Found request to a deploy by push event on branch ($changed_ref) and config URL=$URL_BRANCH"
     log "Wrong config, modified branch name not equal to config URL, skipped deploy"
     exit 16
 
@@ -334,20 +334,20 @@ condition_check() {
   elif [[ ! "$COMPARE_URL" ]] ; then
     log "Found request to a deploy by button *Test delivery* and config URL=$URL_BRANCH"
     log "Config ok, make a deploy for branch ($URL_BRANCH)"
-    tag=$URL_BRANCH
+    ref=$URL_BRANCH
 
   # if not found any variants for make deploy - report to log
   else
     log "Not found valid request and config URL for deploy"
   fi
 
-  if [[ $tag != ${tag#$TAG_PREFIX_SKIP} ]] ; then
+  if [[ $ref != ${ref#$TAG_PREFIX_SKIP} ]] ; then
     log "Hook skipped: ($TAG_PREFIX_SKIP) matched"
     exit 17
   fi
 
-  if [[ "$TAG_PREFIX_FILTER" ]] && [[ $tag == ${tag#$TAG_PREFIX_FILTER} ]] ; then
-    log "Hook skipped: ($tag) ($TAG_PREFIX_FILTER) does not matched"
+  if [[ "$TAG_PREFIX_FILTER" ]] && [[ $ref == ${ref#$TAG_PREFIX_FILTER} ]] ; then
+    log "Hook skipped: ($ref) ($TAG_PREFIX_FILTER) does not matched"
     exit 18
   fi
 }
@@ -358,10 +358,10 @@ process() {
 
   local repo
   local repoid
-  local tag
+  local ref
   condition_check
 
-  local deploy_dir="${repoid}--$tag"
+  local deploy_dir="${repoid}--$ref"
 
   local config
   kv_read $deploy_dir
@@ -370,8 +370,8 @@ process() {
   pushd $DEPLOY_PATH > /dev/null
 
   # Cleanup old distro
-  if [[ ${tag%-rm} != $tag ]] ; then
-    local rmtag=${tag%-rm}
+  if [[ ${ref%-rm} != $ref ]] ; then
+    local rmtag=${ref%-rm}
     log "$repo $rmtag"
     deploy_dir="${repoid}--$rmtag"
     log "Requested cleanup for $deploy_dir"
@@ -418,7 +418,7 @@ process() {
     fi
     local make_cmd=$(config_var "$config" $VAR_MAKE_UPDATE)
     log "Pull..."
-    $GIT fetch && $GIT reset --hard origin/$tag
+    $GIT fetch && $GIT reset --hard origin/$ref
     $GIT pull --recurse-submodules 2>&1 || { echo "Pull error: $?" ; exit 21 ; }
     log "Pull submodules..."
     $GIT submodule update --recursive --remote 2>&1 || { echo "Submodule error: $?" ; exit 22 ; }
@@ -444,9 +444,9 @@ process() {
     log "Creating $deploy_dir..."
     mkdir -p $deploy_dir || { log "Create mkdir error: $!" ; exit $? ; }
   fi
-  log "Clone $repo / $tag..."
-  log "git clone --depth=1 --recursive --branch $tag $repo $deploy_dir"
-  $GIT clone --depth=1 --recursive --branch $tag $repo $deploy_dir || { echo "Clone error: $?" ; exit 23 ; }
+  log "Clone $repo / $ref..."
+  log "git clone --depth=1 --recursive --branch $ref $repo $deploy_dir"
+  $GIT clone --depth=1 --recursive --branch $ref $repo $deploy_dir || { echo "Clone error: $?" ; exit 23 ; }
   pushd $deploy_dir > /dev/null
 
   if [ -f Makefile ] ; then
