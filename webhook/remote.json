@@ -49,6 +49,16 @@
         "source": "payload",
         "name": "repository.clone_url",
         "envname": "CLONE_URL"
+      },
+      {
+ 	    "source": "payload",
+ 	    "name": "repository.default_branch",
+ 	    "envname": "DEFAULT_BRANCH"
+      },
+      {
+ 	    "source": "payload",
+ 	    "name": "compare_url",
+ 	    "envname": "COMPARE_URL"
       }
     ]
   }
