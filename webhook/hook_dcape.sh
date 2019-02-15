@@ -16,8 +16,7 @@ REPO_PRIVATE=${REPO_PRIVATE:-false}
 SSH_URL=${SSH_URL}
 CLONE_URL=${CLONE_URL}
 DEFAULT_BRANCH=${DEFAULT_BRANCH:-master}
-# when push to repo gitea send compare_url is not empty
-# if "Test delivery" - compare_url is empty
+# COMPARE_URL is empty if hook was raised by "Test delivery" button
 COMPARE_URL=${COMPARE_URL:-}
 
 # ------------------------------------------------------------------------------
@@ -250,7 +249,7 @@ condition_check() {
     exit 11
   fi
 
-  # TODO: support "ref"
+  # TODO: support for "git push --tags"
   if [[ "$EVENT" != "push" ]] && [[ "$EVENT" != "create" ]]; then
     log "Hook skipped: only push & create supported, but received '$EVENT'"
     exit 12
@@ -270,7 +269,7 @@ condition_check() {
    if [[ ! "$COMPARE_URL" ]] ; then
      # check config URL for the presence of "default" string
      # if presence - use branch name from gitea data, if none - use branch name fron URL config
-     if [[ ${URL_BRANCH} == *default* ]] ; then
+     if [[ ${URL_BRANCH} == default-rm ]] ; then
        log "Found request to a remove deploy by button *Test delivery* and config URL=default-rm"
        log "Config ok, reremove deployment for branch ($DEFAULT_BRANCH) configured as the default on repository"
        ref=${DEFAULT_BRANCH}-rm
@@ -285,8 +284,8 @@ condition_check() {
      exit 13
    fi
 
-  # if in config URL not present "-rm" - check for URL=default
-  elif [[ ${URL_BRANCH} == *default* ]] ; then
+  # if config URL does not contain "-rm" - check for URL=default
+  elif [[ ${URL_BRANCH} == default ]] ; then
     # check the event witch initiated deployment, if "Test delivery" - make a remove default branch
     if [[ ! "$COMPARE_URL" ]] ; then
       log "Found request to a deploy by button *Test delivery* and config URL=default"
@@ -294,7 +293,7 @@ condition_check() {
       log "Config ok, make deploy a branch ($DEFAULT_BRANCH)"
       ref=$DEFAULT_BRANCH
     else
-      if [[ $changed_ref == "$DEFAULT_BRANCH" ]] ; then
+      if [[ "$changed_ref" == "$DEFAULT_BRANCH" ]] ; then
         log "Found request to a deploy by push event for branch ($changed_ref) and config URL=default"
         log "Branch ($changed_ref) the default branch in the repository settings"
         log "Config ok, make deploy a branch ($changed_ref)"
