@@ -1,4 +1,4 @@
- [
+[
   {
     "id": "local",
     "execute-command": "/etc/webhook/hook_dcape.sh",
