@@ -340,13 +340,13 @@ condition_check() {
     log "Not found valid request and config URL for deploy"
   fi
 
-  if [[ $ref != ${ref#$TAG_PREFIX_SKIP} ]] ; then
-    log "Hook skipped: ($TAG_PREFIX_SKIP) matched"
+  if [[ $ref != ${ref#$REF_PREFIX_SKIP} ]] ; then
+    log "Hook skipped: ($REF_PREFIX_SKIP) matched"
     exit 17
   fi
 
-  if [[ "$TAG_PREFIX_FILTER" ]] && [[ $ref == ${ref#$TAG_PREFIX_FILTER} ]] ; then
-    log "Hook skipped: ($ref) ($TAG_PREFIX_FILTER) does not matched"
+  if [[ "$REF_PREFIX_FILTER" ]] && [[ $ref == ${ref#$REF_PREFIX_FILTER} ]] ; then
+    log "Hook skipped: ($ref) ($REF_PREFIX_FILTER) does not matched"
     exit 18
   fi
 }
